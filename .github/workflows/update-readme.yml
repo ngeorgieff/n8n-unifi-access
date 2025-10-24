@@ -1,0 +1,226 @@
+name: Auto-Update README with LLM
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'lib/**'
+      - 'api/**'
+      - 'config/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'yarn.lock'
+      - 'pnpm-lock.yaml'
+      - 'Dockerfile'
+      - 'docker-compose.yml'
+      - '.env.example'
+  workflow_dispatch:
+    inputs:
+      force_update:
+        description: 'Force README update even if no code changes'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Analyze codebase structure
+      id: analyze
+      run: |
+        echo "Analyzing codebase structure..."
+        
+        # Create a comprehensive codebase summary
+        cat > codebase_summary.md << 'EOF'
+        # Codebase Analysis for README Generation
+        
+        ## Repository Information
+        - Repository: ${{ github.repository }}
+        - Branch: ${{ github.ref_name }}
+        - Last commit: ${{ github.sha }}
+        
+        ## Directory Structure
+        EOF
+        
+        # Add directory tree (excluding hidden files and common ignore patterns)
+        echo '```' >> codebase_summary.md
+        tree -I 'node_modules|.git|.next|dist|build|coverage|*.log' -a -L 3 || find . -type f -not -path '*/.*' -not -path '*/node_modules/*' | head -50 >> codebase_summary.md
+        echo '```' >> codebase_summary.md
+        
+        # Add package.json analysis if it exists
+        if [ -f "package.json" ]; then
+          echo -e "\n## Package.json Analysis" >> codebase_summary.md
+          echo '```json' >> codebase_summary.md
+          cat package.json >> codebase_summary.md
+          echo '```' >> codebase_summary.md
+        fi
+        
+        # Add Docker configuration if it exists
+        if [ -f "Dockerfile" ] || [ -f "docker-compose.yml" ]; then
+          echo -e "\n## Docker Configuration Found" >> codebase_summary.md
+          [ -f "Dockerfile" ] && echo "- Dockerfile present" >> codebase_summary.md
+          [ -f "docker-compose.yml" ] && echo "- docker-compose.yml present" >> codebase_summary.md
+        fi
+        
+        # Add environment configuration
+        if [ -f ".env.example" ]; then
+          echo -e "\n## Environment Configuration" >> codebase_summary.md
+          echo '```' >> codebase_summary.md
+          cat .env.example >> codebase_summary.md
+          echo '```' >> codebase_summary.md
+        fi
+        
+        # Add key source files content (first 50 lines each)
+        echo -e "\n## Key Source Files (Preview)" >> codebase_summary.md
+        for file in $(find . -name "*.js" -o -name "*.ts" -o -name "*.py" -o -name "*.go" -o -name "*.rs" | grep -v node_modules | head -10); do
+          if [ -f "$file" ]; then
+            echo -e "\n### $file" >> codebase_summary.md
+            echo '```' >> codebase_summary.md
+            head -50 "$file" >> codebase_summary.md
+            echo '```' >> codebase_summary.md
+          fi
+        done
+        
+        # Add current README for context
+        if [ -f "README.md" ]; then
+          echo -e "\n## Current README.md" >> codebase_summary.md
+          echo '```markdown' >> codebase_summary.md
+          cat README.md >> codebase_summary.md
+          echo '```' >> codebase_summary.md
+        fi
+
+    - name: Generate README with OpenAI
+      id: generate
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      run: |
+        # Install curl and jq if not available
+        sudo apt-get update && sudo apt-get install -y curl jq
+        
+        # Prepare the prompt
+        PROMPT="You are a technical documentation expert. Based on the following codebase analysis, generate a comprehensive, professional README.md file that includes:
+
+        1. Project title and brief description
+        2. Features and capabilities
+        3. Installation/setup instructions
+        4. Usage examples
+        5. API documentation (if applicable)
+        6. Configuration options
+        7. Development setup
+        8. Contributing guidelines
+        9. License information
+
+        Make the README engaging, well-structured with proper markdown formatting, and include code examples where appropriate. Focus on practical information that helps users understand and use the project.
+
+        IMPORTANT: Respond with ONLY the markdown content for the README.md file, no additional text or explanations.
+
+        Codebase Analysis:
+        $(cat codebase_summary.md)"
+        
+        # Make API call to OpenAI
+        RESPONSE=$(curl -s -X POST "https://api.openai.com/v1/chat/completions" \
+          -H "Content-Type: application/json" \
+          -H "Authorization: Bearer $OPENAI_API_KEY" \
+          -d "{
+            \"model\": \"gpt-4\",
+            \"messages\": [
+              {
+                \"role\": \"system\",
+                \"content\": \"You are a technical documentation expert who creates clear, comprehensive README files.\"
+              },
+              {
+                \"role\": \"user\",
+                \"content\": $(echo "$PROMPT" | jq -R -s .)
+              }
+            ],
+            \"max_tokens\": 4000,
+            \"temperature\": 0.3
+          }")
+        
+        # Extract the generated content
+        NEW_README=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
+        
+        if [ "$NEW_README" != "null" ] && [ ! -z "$NEW_README" ]; then
+          echo "$NEW_README" > README_new.md
+          echo "readme_generated=true" >> $GITHUB_OUTPUT
+        else
+          echo "Failed to generate README. API Response:"
+          echo "$RESPONSE"
+          echo "readme_generated=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+
+    - name: Check for changes
+      id: changes
+      run: |
+        if [ ! -f "README.md" ]; then
+          echo "changes_detected=true" >> $GITHUB_OUTPUT
+          echo "No existing README.md found"
+        elif ! diff -q README.md README_new.md > /dev/null; then
+          echo "changes_detected=true" >> $GITHUB_OUTPUT
+          echo "Changes detected in README.md"
+        else
+          echo "changes_detected=false" >> $GITHUB_OUTPUT
+          echo "No changes detected in README.md"
+        fi
+
+    - name: Update README
+      if: steps.changes.outputs.changes_detected == 'true' || github.event.inputs.force_update == 'true'
+      run: |
+        mv README_new.md README.md
+        echo "README.md has been updated"
+
+    - name: Commit and push changes
+      if: steps.changes.outputs.changes_detected == 'true' || github.event.inputs.force_update == 'true'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add README.md
+        git commit -m "🤖 Auto-update README.md with latest codebase information
+
+        Generated by GitHub Actions using LLM analysis
+        Commit: ${{ github.sha }}
+        Workflow: ${{ github.workflow }}"
+        git push
+
+    - name: Create Pull Request (if on feature branch)
+      if: (steps.changes.outputs.changes_detected == 'true' || github.event.inputs.force_update == 'true') && github.ref_name != 'main'
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh pr create \
+          --title "🤖 Auto-update README.md" \
+          --body "This PR was automatically generated to update the README.md file based on the latest codebase analysis.
+
+        ## Changes
+        - Updated README.md with current project structure and information
+        - Generated using LLM analysis of the codebase
+
+        ## Review Notes
+        Please review the generated content for accuracy and make any necessary adjustments.
+
+        **Triggered by:** ${{ github.event_name }}
+        **Commit:** ${{ github.sha }}" \
+          --head ${{ github.ref_name }} \
+          --base main || echo "PR already exists or couldn't be created"
+
+    - name: Cleanup
+      run: |
+        rm -f codebase_summary.md README_new.md
