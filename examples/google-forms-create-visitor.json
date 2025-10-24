@@ -1,0 +1,71 @@
+{
+  "name": "Google Forms to UniFi Access - Create Visitor",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "unifi-access-visitor",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "resource": "visitor",
+        "operation": "create",
+        "firstName": "={{ $json.firstName }}",
+        "lastName": "={{ $json.lastName }}",
+        "purpose": "={{ $json.purpose || 'Delivery' }}",
+        "email": "={{ $json.email }}"
+      },
+      "name": "UniFi Access - Create Visitor",
+      "type": "n8n-nodes-unifi-access.unifiAccess",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "credentials": {
+        "unifiAccessApi": {
+          "id": "1",
+          "name": "UniFi Access API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "email": "={{ $json.email }}",
+        "subject": "Your Visitor Access Code",
+        "message": "=Hello {{ $json.first_name }},\n\nYour visitor access code is: {{ $json.generated_pin }}\n\nThank you!"
+      },
+      "name": "Send Email with PIN",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [650, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "UniFi Access - Create Visitor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UniFi Access - Create Visitor": {
+      "main": [
+        [
+          {
+            "node": "Send Email with PIN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
