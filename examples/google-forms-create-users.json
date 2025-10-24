@@ -1,0 +1,45 @@
+{
+  "name": "Google Forms to UniFi Access - Create Users",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "unifi-access-users",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "resource": "user",
+        "operation": "createMultiple",
+        "users": "={{ $json.users }}"
+      },
+      "name": "UniFi Access - Create Users",
+      "type": "n8n-nodes-unifi-access.unifiAccess",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "credentials": {
+        "unifiAccessApi": {
+          "id": "1",
+          "name": "UniFi Access API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "UniFi Access - Create Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

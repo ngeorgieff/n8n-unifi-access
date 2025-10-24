@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n-unifi-access-dev
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      # SECURITY WARNING: Change these default credentials in production!
+      # For development only - use strong credentials for any real deployment
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=admin
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=development
+      - WEBHOOK_URL=http://localhost:5678/
+      - GENERIC_TIMEZONE=America/New_York
+      - N8N_CUSTOM_EXTENSIONS=/data/custom
+    volumes:
+      # Mount the custom node development directory
+      - ./:/data/custom/n8n-nodes-unifi-access
+      # Persist n8n data
+      - n8n_data:/home/node/.n8n
+      # Optional: Mount workflows for easy backup
+      - ./workflows:/home/node/.n8n/workflows
+    networks:
+      - n8n-network
+
+  # Optional: Add a PostgreSQL database for production-like setup
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: n8n-postgres
+  #   restart: unless-stopped
+  #   environment:
+  #     - POSTGRES_USER=n8n
+  #     - POSTGRES_PASSWORD=n8n
+  #     - POSTGRES_DB=n8n
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   networks:
+  #     - n8n-network
+
+volumes:
+  n8n_data:
+    driver: local
+  # postgres_data:
+  #   driver: local
+
+networks:
+  n8n-network:
+    driver: bridge
