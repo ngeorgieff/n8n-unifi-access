@@ -9,6 +9,8 @@ services:
       - "5678:5678"
     environment:
       - N8N_BASIC_AUTH_ACTIVE=true
+      # SECURITY WARNING: Change these default credentials in production!
+      # For development only - use strong credentials for any real deployment
       - N8N_BASIC_AUTH_USER=admin
       - N8N_BASIC_AUTH_PASSWORD=admin
       - N8N_HOST=localhost

@@ -208,10 +208,11 @@ The UniFi Access API may implement rate limiting. Best practices:
 - `guest`: Guest user
 
 ### Access Code Format
-- **User PIN**: 4 digits (e.g., "1234")
-- **Visitor PIN**: 6 digits (e.g., "123456")
+- **User PIN**: 4 digits (e.g., "1234", "0123")
+- **Visitor PIN**: 6 digits (e.g., "123456", "001234")
 - Must be numeric only
-- No leading zeros for the entire PIN
+- Should be treated as a string to preserve leading zeros
+- Leading zeros are allowed (e.g., "0001" is valid)
 
 ## Best Practices
 

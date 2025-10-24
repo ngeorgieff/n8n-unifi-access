@@ -388,7 +388,7 @@ npm publish
 - [n8n Node Development](https://docs.n8n.io/integrations/creating-nodes/)
 - [n8n Community Nodes](https://docs.n8n.io/integrations/community-nodes/)
 - [TypeScript Handbook](https://www.typescriptlang.org/docs/)
-- [UniFi Access API](https://github.com/hjdhjd/unifi-access)
+- [UniFi Access API (Community Documentation)](https://github.com/hjdhjd/unifi-access) - Note: This is community-maintained reverse-engineered documentation and may not reflect the latest official API changes. Official Ubiquiti documentation should be consulted when available.
 
 ## Getting Help
 
